@@ -1,0 +1,239 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>대기 안정도와 스모그 현상 시뮬레이션</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <style>
+        body {
+            font-family: 'Pretendard', -apple-system, BlinkMacSystemFont, system-ui, Roboto, 'Helvetica Neue', 'Segoe UI', 'Apple SD Gothic Neo', 'Noto Sans KR', 'Malgun Gothic', sans-serif;
+            background-color: #f3f4f6;
+        }
+        #simCanvas {
+            box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.1), 0 2px 4px -1px rgba(0, 0, 0, 0.06);
+            border-radius: 0.5rem;
+            background-color: #ffffff;
+            width: 100%;
+            max-width: 800px;
+            height: auto;
+        }
+    </style>
+</head>
+<body class="flex flex-col items-center justify-center min-h-screen p-4">
+
+    <div class="max-w-4xl w-full bg-white rounded-xl shadow-lg p-6 space-y-6">
+        
+        <!-- 헤더 영역 -->
+        <div class="text-center">
+            <h1 class="text-2xl md:text-3xl font-bold text-gray-800 mb-2">대기 안정도와 스모그 발생 원리</h1>
+            <p class="text-gray-600">버튼을 클릭하여 대기의 상태(기온 역전)에 따라 매연이 어떻게 움직이는지 관찰해 보세요.</p>
+        </div>
+
+        <!-- 컨트롤 버튼 영역 -->
+        <div class="flex flex-col sm:flex-row justify-center gap-4">
+            <button id="btnStable" class="px-6 py-3 bg-red-500 hover:bg-red-600 text-white font-bold rounded-lg transition duration-200 shadow-md">
+                상황 1: 안정 대기 (기온 역전 / 스모그 발생)
+            </button>
+            <button id="btnUnstable" class="px-6 py-3 bg-blue-500 hover:bg-blue-600 text-white font-bold rounded-lg transition duration-200 shadow-md">
+                상황 2: 불안정 대기 (대류 활발 / 정상 상태)
+            </button>
+        </div>
+
+        <!-- 시뮬레이션 캔버스 -->
+        <div class="flex justify-center">
+            <canvas id="simCanvas" width="800" height="500"></canvas>
+        </div>
+
+        <!-- 설명 패널 -->
+        <div id="descPanel" class="bg-red-50 border-l-4 border-red-500 p-4 rounded-r-lg">
+            <h3 id="descTitle" class="text-lg font-bold text-red-700 mb-1">대류 현상 정지 (기온 역전)</h3>
+            <p id="descText" class="text-gray-700">지표면이 차갑게 식으면서 차가운 공기층이 아래에 깔리고, 그 위를 따뜻한 공기층이 덮는 '기온 역전' 현상이 발생했습니다. 무거운 차가운 공기가 아래에 있어 대류가 일어나지 않습니다. 공장의 매연이 위로 빠져나가지 못하고 지표면에 갇혀 치명적인 스모그가 형성됩니다.</p>
+        </div>
+
+    </div>
+
+    <script>
+        const canvas = document.getElementById('simCanvas');
+        const ctx = canvas.getContext('2d');
+        
+        // 상태 변수 (기본값: 안정 대기 - 기온 역전)
+        let isStable = true;
+        let particles = [];
+        
+        // 버튼 요소
+        const btnStable = document.getElementById('btnStable');
+        const btnUnstable = document.getElementById('btnUnstable');
+        const descPanel = document.getElementById('descPanel');
+        const descTitle = document.getElementById('descTitle');
+        const descText = document.getElementById('descText');
+
+        // 상태 변경 이벤트 리스너
+        btnStable.addEventListener('click', () => {
+            isStable = true;
+            updateUI();
+            particles = []; // 상태 변경 시 입자 초기화
+        });
+
+        btnUnstable.addEventListener('click', () => {
+            isStable = false;
+            updateUI();
+            particles = [];
+        });
+
+        function updateUI() {
+            if (isStable) {
+                descPanel.className = "bg-red-50 border-l-4 border-red-500 p-4 rounded-r-lg mt-4";
+                descTitle.className = "text-lg font-bold text-red-700 mb-1";
+                descTitle.innerText = "대류 현상 정지 (기온 역전)";
+                descText.innerText = "지표면이 차갑게 식으면서 차가운 공기층이 아래에 깔리고, 그 위를 따뜻한 공기층이 덮는 '기온 역전' 현상이 발생했습니다. 무거운 차가운 공기가 아래에 있어 대류가 일어나지 않습니다. 공장의 매연이 위로 빠져나가지 못하고 지표면에 갇혀 치명적인 스모그가 형성됩니다.";
+            } else {
+                descPanel.className = "bg-blue-50 border-l-4 border-blue-500 p-4 rounded-r-lg mt-4";
+                descTitle.className = "text-lg font-bold text-blue-700 mb-1";
+                descTitle.innerText = "활발한 대류 현상 (정상 대기)";
+                descText.innerText = "지표면의 따뜻한 공기는 가벼워서 위로 상승하고, 위의 차가운 공기는 아래로 내려오는 활발한 대류 현상이 일어납니다. 공장의 매연이 상승 기류를 타고 하늘 높이 날아가 흩어지므로 공기가 깨끗하게 유지됩니다.";
+            }
+        }
+
+        // 매연 입자 클래스
+        class Particle {
+            constructor(x, y) {
+                this.x = x;
+                this.y = y;
+                // 초기 속도 (위로 올라가는 힘)
+                this.vx = (Math.random() - 0.5) * 1.5;
+                this.vy = -Math.random() * 2 - 1.5;
+                this.life = 1.0;
+                this.size = Math.random() * 15 + 10;
+            }
+
+            update() {
+                if (isStable) {
+                    // 안정 대기 (기온 역전) 로직: 중간층(y=200) 부근에서 막힘
+                    if (this.y < 220) {
+                        this.vy *= 0.8; // 수직 상승력을 급격히 잃음
+                        // 양 옆으로 퍼지도록 수평 속도 증가
+                        this.vx += (Math.random() - 0.5) * 0.4;
+                    }
+                    // 수명이 천천히 줄어들어 화면에 오래 머뭄 (스모그 축적)
+                    this.life -= 0.002;
+                } else {
+                    // 불안정 대기 로직: 계속 상승
+                    this.size += 0.1; // 올라갈수록 퍼짐
+                    this.life -= 0.006; // 빨리 흩어짐
+                }
+
+                this.x += this.vx;
+                this.y += this.vy;
+            }
+
+            draw() {
+                // 입자 그리기
+                ctx.fillStyle = `rgba(80, 80, 80, ${this.life * 0.6})`;
+                ctx.beginPath();
+                ctx.arc(this.x, this.y, this.size, 0, Math.PI * 2);
+                ctx.fill();
+            }
+        }
+
+        // 배경 그리기 함수
+        function drawBackground() {
+            // 하늘 그라데이션
+            let gradient = ctx.createLinearGradient(0, 0, 0, canvas.height);
+            
+            if (isStable) {
+                // 기온 역전: 위가 따뜻(붉은색), 아래가 차가움(푸른/회색)
+                gradient.addColorStop(0, "#ffe4e1"); // 따뜻한 위쪽 공기
+                gradient.addColorStop(0.5, "#e0e7ff"); // 경계
+                gradient.addColorStop(1, "#9ca3af"); // 차갑고 탁한 지표면
+            } else {
+                // 정상 대기: 위가 차가움(푸른색), 아래가 따뜻(붉은/노란색)
+                gradient.addColorStop(0, "#bae6fd"); // 차가운 위쪽 공기
+                gradient.addColorStop(1, "#fef08a"); // 지표열로 따뜻한 아래쪽 공기
+            }
+            
+            ctx.fillStyle = gradient;
+            ctx.fillRect(0, 0, canvas.width, canvas.height);
+
+            // 온도 층 라벨 텍스트
+            ctx.font = "bold 20px Pretendard, sans-serif";
+            ctx.fillStyle = "rgba(0, 0, 0, 0.5)";
+            ctx.textAlign = "center";
+            
+            if (isStable) {
+                ctx.fillText("☀️ 따뜻한 공기 (가벼움)", canvas.width / 2, 80);
+                // 경계선
+                ctx.setLineDash([5, 5]);
+                ctx.beginPath();
+                ctx.moveTo(0, 200);
+                ctx.lineTo(canvas.width, 200);
+                ctx.strokeStyle = "rgba(255, 0, 0, 0.3)";
+                ctx.lineWidth = 2;
+                ctx.stroke();
+                ctx.setLineDash([]);
+                ctx.fillText("❄️ 역전층 경계 (대류 멈춤) ❄️", canvas.width / 2, 195);
+                ctx.fillText("❄️ 차가운 공기 (무거움)", canvas.width / 2, 300);
+            } else {
+                ctx.fillText("❄️ 차가운 공기 (무거움)", canvas.width / 2, 80);
+                ctx.fillText("⬆️ 대류 현상 (상승 기류) ⬆️", canvas.width / 2, 250);
+                ctx.fillText("☀️ 따뜻한 공기 (가벼움)", canvas.width / 2, 380);
+            }
+
+            // 도시/공장 배경
+            ctx.fillStyle = "#374151";
+            // 건물들
+            ctx.fillRect(50, 400, 80, 100);
+            ctx.fillRect(150, 350, 100, 150);
+            ctx.fillRect(550, 380, 120, 120);
+            ctx.fillRect(700, 420, 80, 80);
+            
+            // 공장 굴뚝
+            ctx.fillStyle = "#4b5563";
+            ctx.fillRect(320, 300, 30, 200); // 굴뚝 1
+            ctx.fillRect(450, 280, 40, 220); // 굴뚝 2
+            
+            // 굴뚝 입구 장식
+            ctx.fillStyle = "#1f2937";
+            ctx.fillRect(315, 300, 40, 10);
+            ctx.fillRect(445, 280, 50, 10);
+            
+            // 땅
+            ctx.fillStyle = "#1f2937";
+            ctx.fillRect(0, 480, canvas.width, 20);
+        }
+
+        // 애니메이션 루프
+        function animate() {
+            ctx.clearRect(0, 0, canvas.width, canvas.height);
+            
+            drawBackground();
+
+            // 입자 생성 (굴뚝 위치)
+            if (Math.random() < 0.6) {
+                particles.push(new Particle(335, 300));
+            }
+            if (Math.random() < 0.8) {
+                particles.push(new Particle(470, 280));
+            }
+
+            // 입자 업데이트 및 그리기
+            for (let i = particles.length - 1; i >= 0; i--) {
+                let p = particles[i];
+                p.update();
+                p.draw();
+
+                // 수명이 다하거나 화면 밖으로 나가면 배열에서 제거
+                if (p.life <= 0 || p.x < -50 || p.x > canvas.width + 50 || p.y < -50) {
+                    particles.splice(i, 1);
+                }
+            }
+
+            requestAnimationFrame(animate);
+        }
+
+        // 초기 실행
+        updateUI();
+        animate();
+    </script>
+</body>
+</html>
